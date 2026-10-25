@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # 1. Ollama 로컬 LLM 컨테이너
+  ollama:
+    image: ollama/ollama:latest
+    container_name: palbegae-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # 2. 118 팔배개 STT 및 상담지원 백엔드 서버
+  palbegae-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: palbegae-backend
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    ports:
+      - "8000:8000"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8000
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen3:4b
+      - STT_ENGINE=faster-whisper
+      - STT_MODEL_SIZE=base
+      - STT_DEVICE=cuda
+      - STT_COMPUTE_TYPE=float16
+      - CRM_DATA_DIR=/app/data/crm_records
+    volumes:
+      - whisper_models:/app/data/whisper_models
+      - crm_data:/app/data/crm_records
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  ollama_models:
+  whisper_models:
+  crm_data:
